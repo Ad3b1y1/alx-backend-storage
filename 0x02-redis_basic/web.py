@@ -1,38 +1,30 @@
 #!/usr/bin/env python3
 '''A module with tools for request caching and tracking.
 '''
-import redis
+
 import requests
-from functools import wraps
-from typing import Callable
+import time
 
+# Dictionary to store URL counts and cached results
+url_cache = {}
 
-redis_store = redis.Redis()
-'''The module-level Redis instance.
-'''
-
-
-def data_cacher(method: Callable) -> Callable:
-    '''Caches the output of fetched data.
-    '''
-    @wraps(method)
-    def invoker(url) -> str:
-        '''The wrapper function for caching the output.
-        '''
-        redis_store.incr(f'count:{url}')
-        result = redis_store.get(f'result:{url}')
-        if result:
-            return result.decode('utf-8')
-        result = method(url)
-        redis_store.set(f'count:{url}', 0)
-        redis_store.setex(f'result:{url}', 10, result)
-        return result
-    return invoker
-
-
-@data_cacher
 def get_page(url: str) -> str:
-    '''Returns the content of a URL after caching the request's response,
-    and tracking the request.
-    '''
-    return requests.get(url).text
+    # Check if the URL is cached and still valid (within 10 seconds)
+    if url in url_cache and time.time() - url_cache[url]['timestamp'] < 10:
+        url_cache[url]['count'] += 1
+        return url_cache[url]['content']
+
+    # If the URL is not cached or expired, fetch the content using requests
+    response = requests.get(url)
+    
+    # Simulate slow response using slowwly.robertomurray.co.uk (optional)
+    # time.sleep(5)
+
+    # Store the fetched content in the cache along with the current timestamp and count
+    url_cache[url] = {
+        'content': response.text,
+        'timestamp': time.time(),
+        'count': 1
+    }
+
+    return response.text
